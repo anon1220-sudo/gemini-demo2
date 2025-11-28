@@ -1,0 +1,5 @@
+{
+  "name": "My Learning Blog",
+  "description": "A full-stack personal learning diary application using React, Node.js, and MongoDB.",
+  "requestFramePermissions": []
+}
