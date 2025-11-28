@@ -2,6 +2,7 @@ import { Log, LogFormData } from '../types';
 
 const API_URL = 'http://localhost:5000/api/logs';
 const STORAGE_KEY = 'learning_blog_offline_data';
+const TIMEOUT_MS = 3000; // 3 seconds timeout
 
 // Helper for local storage management
 const getLocalData = (): Log[] => {
@@ -17,10 +18,28 @@ const setLocalData = (data: Log[]) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 };
 
+// Helper for fetch with timeout
+const fetchWithTimeout = async (url: string, options: RequestInit = {}) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+};
+
 export const logService = {
   // Online methods
   getAll: async (): Promise<Log[]> => {
-    const response = await fetch(API_URL);
+    const response = await fetchWithTimeout(API_URL);
     if (!response.ok) throw new Error('Failed to fetch logs');
     return await response.json();
   },
@@ -31,7 +50,7 @@ export const logService = {
       tags: logData.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== '')
     };
 
-    const response = await fetch(API_URL, {
+    const response = await fetchWithTimeout(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -46,7 +65,7 @@ export const logService = {
       tags: logData.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== '')
     };
 
-    const response = await fetch(`${API_URL}/${id}`, {
+    const response = await fetchWithTimeout(`${API_URL}/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -56,8 +75,11 @@ export const logService = {
   },
 
   delete: async (id: string): Promise<void> => {
-    const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-    if (!response.ok) throw new Error('Failed to delete log');
+    const response = await fetchWithTimeout(`${API_URL}/${id}`, { method: 'DELETE' });
+    if (!response.ok) {
+       const text = await response.text();
+       throw new Error(`Failed to delete log: ${text}`);
+    }
   },
 
   // Offline / Fallback methods

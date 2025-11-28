@@ -58,13 +58,17 @@ router.put('/:id', async (req, res) => {
 // @route   DELETE /api/logs/:id
 // @desc    Delete a log
 router.delete('/:id', async (req, res) => {
+  console.log(`[DELETE] Request received for ID: ${req.params.id}`);
   try {
     const log = await Log.findByIdAndDelete(req.params.id);
     if (!log) {
+      console.log(`[DELETE] Log not found: ${req.params.id}`);
       return res.status(404).json({ message: 'Log not found' });
     }
+    console.log(`[DELETE] Successfully deleted: ${req.params.id}`);
     res.json({ message: 'Log deleted' });
   } catch (err) {
+    console.error(`[DELETE] Error: ${err.message}`);
     res.status(500).json({ message: err.message });
   }
 });
