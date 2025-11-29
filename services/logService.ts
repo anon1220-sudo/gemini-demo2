@@ -1,8 +1,9 @@
 import { Log, LogFormData } from '../types';
+import { authService } from './authService';
 
 const API_URL = 'http://localhost:5000/api/logs';
 const STORAGE_KEY = 'learning_blog_offline_data';
-const TIMEOUT_MS = 3000; // 3 seconds timeout
+const TIMEOUT_MS = 5000; // Increased timeout for images
 
 // Helper for local storage management
 const getLocalData = (): Log[] => {
@@ -18,17 +19,32 @@ const setLocalData = (data: Log[]) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 };
 
-// Helper for fetch with timeout
-const fetchWithTimeout = async (url: string, options: RequestInit = {}) => {
+// Helper for fetch with timeout and Auth headers
+const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), TIMEOUT_MS);
   
+  const token = authService.getToken();
+  const headers = {
+    ...options.headers,
+    'Authorization': token ? `Bearer ${token}` : '',
+  };
+
   try {
     const response = await fetch(url, {
       ...options,
+      headers,
       signal: controller.signal
     });
     clearTimeout(id);
+    
+    if (response.status === 401) {
+      // Token expired or invalid
+      authService.logout();
+      window.location.reload();
+      throw new Error('Session expired');
+    }
+    
     return response;
   } catch (error) {
     clearTimeout(id);
@@ -39,7 +55,7 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}) => {
 export const logService = {
   // Online methods
   getAll: async (): Promise<Log[]> => {
-    const response = await fetchWithTimeout(API_URL);
+    const response = await fetchWithAuth(API_URL);
     if (!response.ok) throw new Error('Failed to fetch logs');
     return await response.json();
   },
@@ -50,7 +66,7 @@ export const logService = {
       tags: logData.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== '')
     };
 
-    const response = await fetchWithTimeout(API_URL, {
+    const response = await fetchWithAuth(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -65,7 +81,7 @@ export const logService = {
       tags: logData.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== '')
     };
 
-    const response = await fetchWithTimeout(`${API_URL}/${id}`, {
+    const response = await fetchWithAuth(`${API_URL}/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -75,14 +91,14 @@ export const logService = {
   },
 
   delete: async (id: string): Promise<void> => {
-    const response = await fetchWithTimeout(`${API_URL}/${id}`, { method: 'DELETE' });
+    const response = await fetchWithAuth(`${API_URL}/${id}`, { method: 'DELETE' });
     if (!response.ok) {
        const text = await response.text();
        throw new Error(`Failed to delete log: ${text}`);
     }
   },
 
-  // Offline / Fallback methods
+  // Offline / Fallback methods (Simplified for auth context - usually offline is read-only for secure apps)
   getAllLocal: (): Log[] => {
     return getLocalData();
   },
@@ -90,11 +106,12 @@ export const logService = {
   createLocal: (logData: LogFormData): Log => {
     const logs = getLocalData();
     const newLog: Log = {
-      _id: `local-${Date.now()}`, // Temporary local ID
+      _id: `local-${Date.now()}`,
       title: logData.title,
       content: logData.content,
       tags: logData.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== ''),
       date: logData.date,
+      image: logData.image,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -114,6 +131,7 @@ export const logService = {
       content: logData.content,
       tags: logData.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== ''),
       date: logData.date,
+      image: logData.image,
       updatedAt: new Date().toISOString()
     };
     logs[index] = updatedLog;

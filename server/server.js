@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import logRoutes from './routes/logs.js';
+import authRoutes from './routes/auth.js';
 
 dotenv.config();
 
@@ -11,8 +12,10 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/learning-blog';
 
 // Middleware
+// Increase payload limit for base64 images
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cors());
-app.use(express.json());
 
 // Request logging for debugging
 app.use((req, res, next) => {
@@ -26,6 +29,7 @@ mongoose.connect(MONGODB_URI)
   .catch((err) => console.error('❌ MongoDB Connection Error:', err));
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/logs', logRoutes);
 
 // Base route for testing

@@ -1,13 +1,14 @@
 import express from 'express';
 import Log from '../models/Log.js';
+import auth from '../middleware/auth.js';
 
 const router = express.Router();
 
 // @route   GET /api/logs
-// @desc    Get all logs
-router.get('/', async (req, res) => {
+// @desc    Get all logs for the logged-in user
+router.get('/', auth, async (req, res) => {
   try {
-    const logs = await Log.find().sort({ date: -1 });
+    const logs = await Log.find({ user: req.user.id }).sort({ date: -1 });
     res.json(logs);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -16,14 +17,16 @@ router.get('/', async (req, res) => {
 
 // @route   POST /api/logs
 // @desc    Create a new log
-router.post('/', async (req, res) => {
-  const { title, content, tags, date } = req.body;
+router.post('/', auth, async (req, res) => {
+  const { title, content, tags, date, image } = req.body;
 
   const log = new Log({
+    user: req.user.id,
     title,
     content,
     tags,
-    date
+    date,
+    image
   });
 
   try {
@@ -36,20 +39,24 @@ router.post('/', async (req, res) => {
 
 // @route   PUT /api/logs/:id
 // @desc    Update a log
-router.put('/:id', async (req, res) => {
+router.put('/:id', auth, async (req, res) => {
   try {
-    const { title, content, tags, date } = req.body;
-    const updatedLog = await Log.findByIdAndUpdate(
+    const { title, content, tags, date, image } = req.body;
+    
+    // Ensure the log belongs to the user
+    let log = await Log.findById(req.params.id);
+    if (!log) return res.status(404).json({ message: 'Log not found' });
+    if (log.user.toString() !== req.user.id) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+
+    log = await Log.findByIdAndUpdate(
       req.params.id,
-      { title, content, tags, date },
+      { title, content, tags, date, image },
       { new: true, runValidators: true }
     );
 
-    if (!updatedLog) {
-      return res.status(404).json({ message: 'Log not found' });
-    }
-
-    res.json(updatedLog);
+    res.json(log);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -57,18 +64,19 @@ router.put('/:id', async (req, res) => {
 
 // @route   DELETE /api/logs/:id
 // @desc    Delete a log
-router.delete('/:id', async (req, res) => {
-  console.log(`[DELETE] Request received for ID: ${req.params.id}`);
+router.delete('/:id', auth, async (req, res) => {
   try {
-    const log = await Log.findByIdAndDelete(req.params.id);
-    if (!log) {
-      console.log(`[DELETE] Log not found: ${req.params.id}`);
-      return res.status(404).json({ message: 'Log not found' });
+    const log = await Log.findById(req.params.id);
+    if (!log) return res.status(404).json({ message: 'Log not found' });
+    
+    // Ensure the log belongs to the user
+    if (log.user.toString() !== req.user.id) {
+      return res.status(401).json({ message: 'Not authorized' });
     }
-    console.log(`[DELETE] Successfully deleted: ${req.params.id}`);
+
+    await Log.findByIdAndDelete(req.params.id);
     res.json({ message: 'Log deleted' });
   } catch (err) {
-    console.error(`[DELETE] Error: ${err.message}`);
     res.status(500).json({ message: err.message });
   }
 });
