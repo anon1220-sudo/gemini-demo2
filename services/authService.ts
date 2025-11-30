@@ -1,36 +1,41 @@
 import { AuthResponse } from '../types';
 
-const API_URL = 'http://localhost:5000/api/auth';
+// Use relative path. Vercel routes /api to server.js. 
+// Vite proxy handles this locally.
+const API_URL = '/api/auth';
+
+const handleRequest = async (promise: Promise<Response>) => {
+  try {
+    const response = await promise;
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || '操作失败');
+    }
+    return await response.json();
+  } catch (error) {
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      console.error('Network Error:', error);
+      throw new Error('无法连接到服务器。\n如果是本地运行，请确保已启动后端 (node server/server.js)。');
+    }
+    throw error;
+  }
+};
 
 export const authService = {
   login: async (email: string, password: string): Promise<AuthResponse> => {
-    const response = await fetch(`${API_URL}/login`, {
+    return handleRequest(fetch(`${API_URL}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Login failed');
-    }
-    
-    return await response.json();
+    }));
   },
 
   register: async (username: string, email: string, password: string): Promise<AuthResponse> => {
-    const response = await fetch(`${API_URL}/register`, {
+    return handleRequest(fetch(`${API_URL}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, email, password }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Registration failed');
-    }
-
-    return await response.json();
+    }));
   },
 
   logout: () => {

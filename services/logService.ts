@@ -1,9 +1,11 @@
 import { Log, LogFormData } from '../types';
 import { authService } from './authService';
 
-const API_URL = 'http://localhost:5000/api/logs';
+// Use relative path. Vercel routes /api to server.js. 
+// Vite proxy handles this locally.
+const API_URL = '/api/logs';
 const STORAGE_KEY = 'learning_blog_offline_data';
-const TIMEOUT_MS = 5000; // Increased timeout for images
+const TIMEOUT_MS = 8000; // Increased timeout for serverless cold starts
 
 // Helper for local storage management
 const getLocalData = (): Log[] => {
@@ -98,7 +100,7 @@ export const logService = {
     }
   },
 
-  // Offline / Fallback methods (Simplified for auth context - usually offline is read-only for secure apps)
+  // Offline / Fallback methods
   getAllLocal: (): Log[] => {
     return getLocalData();
   },
